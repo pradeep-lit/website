@@ -1,5 +1,3 @@
-/* eslint-disable react/prop-types */
-
 import { notFound } from 'next/navigation';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import remarkGfm from 'remark-gfm';

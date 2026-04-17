@@ -7,10 +7,12 @@ enableTableOfContents: true
 isDraft: false
 redirectFrom:
   - /docs/conceptual-guides/regions
-updatedOn: '2026-03-11T12:52:46.889Z'
+updatedOn: '2026-04-01T12:00:00.000Z'
 ---
 
 Neon offers project deployment in multiple AWS and Azure regions. To minimize latency between your Neon database and application, we recommend choosing the region closest to your application server.
+
+Each Neon **project** exists in exactly one region. Your database runs in that region. **You cannot change the region** for an existing project. If you need your **data** in a different region, you **create a new Neon project** in that region and **migrate your database** there. You are not moving the project; region is fixed when the project is created.
 
 ## AWS regions
 
@@ -25,13 +27,7 @@ Neon offers project deployment in multiple AWS and Azure regions. To minimize la
 
 ## Azure regions
 
-- 🇺🇸 Azure East US 2 region (Virginia) &mdash; `azure-eastus2`
-- 🇺🇸 Azure West US 3 region (Arizona) &mdash; `azure-westus3`
-- 🇩🇪 Azure Germany West Central region (Frankfurt) &mdash; `azure-gwc`
-
-<Admonition type="note" title="Deployment options on azure">
-For information about Neon deployment options on Azure, see [Neon on Azure](/docs/manage/azure).
-</Admonition>
+<AzureRegionsDeprecation/>
 
 ## Request a region
 
@@ -46,7 +42,7 @@ All branches and databases created in a Neon project are created in the region s
 ![Select region image](/docs/introduction/project_creation_regions.png)
 
 <Admonition type="note">
-After you select a region for a Neon project, it cannot be changed for that project. To use a different region, create a new project in your desired region and [move your data to the new project](/docs/introduction/regions#move-project-data-to-a-new-region).
+After you select a region for a Neon project, it cannot be changed for that project. To run your database in a different region, create a **new** project there and migrate your data. See [Region migration](/docs/import/region-migration).
 </Admonition>
 
 ## NAT Gateway IP addresses
@@ -64,7 +60,7 @@ If you are unsure of your project's region, you can find this information in the
 | `aws-us-west-2`      | 34.213.87.149, 35.164.221.218, 35.83.202.11, 44.235.241.217, 44.236.56.140, 52.32.22.241, 52.37.48.254, 52.40.99.9, 54.186.210.201, 54.213.57.47                                                                                                                                                                          |
 | `aws-eu-central-1`   | 18.156.24.144, 18.158.63.175, 18.194.181.241, 18.198.137.195, 3.123.76.138, 3.125.234.79, 3.125.57.42, 3.66.63.165, 52.58.17.95                                                                                                                                                                                           |
 | `aws-eu-west-2`      | 18.133.205.39, 3.10.42.8, 52.56.191.86                                                                                                                                                                                                                                                                                    |
-| `aws-ap-southeast-1` | 54.254.50.26, 54.254.92.70, 54.255.161.23                                                                                                                                                                                                                                                                                 |
+| `aws-ap-southeast-1` | 3.1.239.32, 47.131.90.115, 52.76.51.78, 54.254.50.26, 54.254.92.70, 54.255.161.23 |
 | `aws-ap-southeast-2` | 13.237.134.148, 13.55.152.144, 54.153.185.87                                                                                                                                                                                                                                                                              |
 | `aws-sa-east-1`      | 18.230.1.215, 52.67.202.176, 54.232.117.41                                                                                                                                                                                                                                                                                |
 
@@ -76,21 +72,10 @@ If you are unsure of your project's region, you can find this information in the
 | `azure-gwc`     | 20.52.100.129, 20.52.100.208, 20.52.187.150    |
 | `azure-westus3` | 20.38.38.171, 20.168.0.32, 20.168.0.77         |
 
-## Move project data to a new region
+<a id="move-project-data-to-a-new-region" aria-hidden="true"></a>
 
-Moving a project to a different region requires moving your data using one of the following options:
+## Move your database to another region
 
-### Option 1: Dump and restore
-
-Using the dump and restore method involves the following steps:
-
-1. Creating a new project in the desired region. For project creation instructions, see [Create a project](/docs/manage/projects#create-a-project).
-1. Moving your data from the old project to the new project. For instructions, see [Import data from Postgres](/docs/import/migrate-from-postgres).
-
-Moving data to a new Neon project using this method may take some time depending on the size of your data. To prevent the loss of data during the import operation, consider disabling writes from your applications before initiating the import operation. You can re-enable writes when the import is completed. Neon does not currently support disabling database writes. Writes must be disabled at the application level.
-
-### Option 2: Logical replication
-
-As an alternative to the dump and restore method described above, you can use **logical replication** to replicate data from one Neon project to another for a near-zero downtime data migration. For more information, see [Replicate data from one Neon project to another](/docs/guides/logical-replication-neon-to-neon).
+A Neon project's region does not change after creation. To use another region, create a **new** project there and migrate your data. See **[Region migration](/docs/import/region-migration)** for paths, prerequisites, and steps.
 
 <NeedHelp/>

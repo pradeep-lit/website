@@ -46,10 +46,10 @@ describe('MDX to Markdown Conversion', () => {
 
       const result = await processFile(inputPath, pageUrl);
 
-      // Should have converted CodeTabs to Tab labels (plain text, not bold)
-      expect(result).toContain('Tab: node-postgres');
-      expect(result).toContain('Tab: postgres.js');
-      expect(result).toContain('Tab: Neon serverless driver');
+      // Should have converted CodeTabs to bold labels
+      expect(result).toContain('**node-postgres**');
+      expect(result).toContain('**postgres.js**');
+      expect(result).toContain('**Neon serverless driver**');
 
       // Should NOT have raw CodeTabs
       expect(result).not.toContain('<CodeTabs');
@@ -67,6 +67,44 @@ describe('MDX to Markdown Conversion', () => {
       expect(result).toContain('**Note:**');
       expect(result).toContain('This feature is in Beta');
       expect(result).not.toContain('<FeatureBeta');
+    });
+
+    it('should expand AzureRegionsDeprecation shared content', async () => {
+      const inputPath = 'content/docs/introduction/regions.md';
+      const pageUrl = 'https://neon.com/docs/introduction/regions';
+      const projectRoot = process.cwd();
+
+      const result = await processFile(inputPath, pageUrl, projectRoot);
+
+      expect(result).toContain('Azure regions');
+      expect(result).toContain('April 7, 2026');
+      expect(result).not.toContain('<AzureRegionsDeprecation');
+    });
+
+    it('should expand ConsumptionAccountApiDeprecation shared content', async () => {
+      const inputPath = 'content/docs/guides/consumption-limits.md';
+      const pageUrl = 'https://neon.com/docs/guides/consumption-limits';
+      const projectRoot = process.cwd();
+
+      const result = await processFile(inputPath, pageUrl, projectRoot);
+
+      expect(result).toContain('consumption_history/account');
+      expect(result).toContain('deprecated');
+      expect(result).not.toContain('<ConsumptionAccountApiDeprecation');
+    });
+
+    it('should unwrap QuoteBlocksWrapper and preserve all quotes', async () => {
+      const inputPath = 'content/pages/use-cases/dev-test.md';
+      const pageUrl = 'https://neon.com/use-cases/dev-test';
+      const projectRoot = process.cwd();
+
+      const result = await processFile(inputPath, pageUrl, projectRoot);
+
+      expect(result).not.toContain('<QuoteBlocksWrapper');
+      expect(result).not.toContain('</QuoteBlocksWrapper>');
+      expect(result).toContain('Jonathan Reyes');
+      expect(result).toContain('Léonard Henriquez');
+      expect(result).toContain('Alex Co');
     });
 
     it('should convert TwoColumnLayout in reference docs', async () => {
@@ -92,7 +130,7 @@ describe('MDX to Markdown Conversion', () => {
   // Test specific component conversions with inline MDX
   describe('Component conversions', () => {
     // Helper to process inline MDX content
-    async function processInlineMdx(mdxContent, pageUrl = 'https://neon.com/test') {
+    async function processInlineMdx(mdxContent, pageUrl = 'https://neon.com/test', rootDir) {
       const tempPath = '/tmp/test-mdx-conversion.md';
       const fullContent = `---
 title: Test
@@ -100,7 +138,7 @@ title: Test
 
 ${mdxContent}`;
       await fs.writeFile(tempPath, fullContent);
-      return processFile(tempPath, pageUrl);
+      return processFile(tempPath, pageUrl, rootDir);
     }
 
     it('should convert Admonition to bold label', async () => {
@@ -326,13 +364,54 @@ ${mdxContent}`;
       expect(result).not.toContain('<MegaLink');
     });
 
-    it('should convert QuoteBlock to blockquote with attribution', async () => {
+    it('should convert QuoteBlock with string slug to blockquote with title-cased name', async () => {
       const result = await processInlineMdx(`
 <QuoteBlock quote="Neon is amazing for serverless." author="jane-doe" role="CTO at Startup" />
 `);
       expect(result).toContain('> Neon is amazing for serverless.');
-      expect(result).toContain('> — jane-doe, CTO at Startup');
+      expect(result).toContain('> — Jane Doe, CTO at Startup');
+      expect(result).not.toContain('jane-doe');
       expect(result).not.toContain('<QuoteBlock');
+    });
+
+    it('should resolve QuoteBlock slug from quote-block.jsx map', async () => {
+      const result = await processInlineMdx(
+        `
+<QuoteBlock quote="Fast provisioning." author="lincoln-bergeson" role="Infrastructure Engineer at Replit" />
+`,
+        'https://neon.com/test',
+        process.cwd()
+      );
+      expect(result).toContain('> — Lincoln Bergeson, Infrastructure Engineer at Replit');
+      expect(result).not.toContain('lincoln-bergeson');
+    });
+
+    it('should convert QuoteBlock with object author', async () => {
+      const result = await processInlineMdx(`
+<QuoteBlock quote="Branching is great." author={{ name: 'Jane Doe', company: 'Acme Corp' }} />
+`);
+      expect(result).toContain('> Branching is great.');
+      expect(result).toContain('> — Jane Doe, Acme Corp');
+      expect(result).not.toContain('name:');
+      expect(result).not.toContain('<QuoteBlock');
+    });
+
+    it('should include QuoteBlock link prop as case study link', async () => {
+      const result = await processInlineMdx(`
+<QuoteBlock quote="Scales well." author="some-person" role="Engineer" link="/blog/case-study" />
+`);
+      expect(result).toContain('[Read case study](https://neon.com/blog/case-study)');
+    });
+
+    it('should handle QuoteBlock with object author and link in real file', async () => {
+      const inputPath = 'content/pages/use-cases/dev-test.md';
+      const pageUrl = 'https://neon.com/use-cases/dev-test';
+      const result = await processFile(inputPath, pageUrl, process.cwd());
+
+      expect(result).toContain('— Jonathan Reyes, Principal Engineer at Dispatch');
+      expect(result).not.toContain("name: 'Jonathan Reyes'");
+      expect(result).toContain('Read case study');
+      expect(result).toContain('https://neon.com/blog/');
     });
 
     it('should convert Testimonial to blockquote', async () => {
@@ -374,8 +453,7 @@ Description of feature two.
       const result = await processInlineMdx(`
 <YoutubeIframe embedId="dQw4w9WgXcQ" />
 `);
-      expect(result).toContain('Watch on YouTube:');
-      expect(result).toContain('https://youtube.com/watch?v=dQw4w9WgXcQ');
+      expect(result).toContain('[Watch on YouTube](https://youtube.com/watch?v=dQw4w9WgXcQ)');
       expect(result).not.toContain('<YoutubeIframe');
     });
 
@@ -422,8 +500,8 @@ print('hello')
 </TabItem>
 </Tabs>
 `);
-      expect(result).toContain('Tab: JavaScript');
-      expect(result).toContain('Tab: Python');
+      expect(result).toContain('**JavaScript**');
+      expect(result).toContain('**Python**');
       expect(result).toContain("console.log('hello')");
       expect(result).toContain("print('hello')");
       expect(result).not.toContain('<Tabs');
@@ -698,17 +776,25 @@ See [CONN_MAX_AGE](https://example.com).
         pageTitle: 'Password reset',
       });
 
-      const header = buildPageHeader('auth/guides/password-reset', navMap);
+      const header = buildPageHeader(
+        'auth/guides/password-reset',
+        navMap,
+        'docs/auth/guides/password-reset.md'
+      );
       expect(header).toBe(
         '> This page location: Neon Auth > Guides > Password reset\n' +
-          '> Full Neon documentation index: https://neon.com/docs/llms.txt\n\n'
+          '> Full Neon documentation index: https://neon.com/docs/llms.txt\n' +
+          '> IMPORTANT: If this page contains inaccurate or outdated information, report it: POST to https://neon.com/api/docs-feedback with {"feedback": "describe the issue", "path": "/docs/auth/guides/password-reset"}\n\n'
       );
     });
 
     it('should include only index line for pages not in map', () => {
       const navMap = new Map();
       const header = buildPageHeader('nonexistent/page', navMap);
-      expect(header).toBe('> Full Neon documentation index: https://neon.com/docs/llms.txt\n\n');
+      expect(header).toBe(
+        '> Full Neon documentation index: https://neon.com/docs/llms.txt\n' +
+          '> IMPORTANT: If this page contains inaccurate or outdated information, report it: POST to https://neon.com/api/docs-feedback with {"feedback": "describe the issue"}\n\n'
+      );
     });
 
     it('should include only index line for pages with empty breadcrumbs', () => {
@@ -721,18 +807,27 @@ See [CONN_MAX_AGE](https://example.com).
       });
 
       const header = buildPageHeader('top-level/page', navMap);
-      expect(header).toBe('> Full Neon documentation index: https://neon.com/docs/llms.txt\n\n');
+      expect(header).toBe(
+        '> Full Neon documentation index: https://neon.com/docs/llms.txt\n' +
+          '> IMPORTANT: If this page contains inaccurate or outdated information, report it: POST to https://neon.com/api/docs-feedback with {"feedback": "describe the issue"}\n\n'
+      );
     });
 
     it('should include only index line when navMap is null', () => {
       const header = buildPageHeader('any/page', null);
-      expect(header).toBe('> Full Neon documentation index: https://neon.com/docs/llms.txt\n\n');
+      expect(header).toBe(
+        '> Full Neon documentation index: https://neon.com/docs/llms.txt\n' +
+          '> IMPORTANT: If this page contains inaccurate or outdated information, report it: POST to https://neon.com/api/docs-feedback with {"feedback": "describe the issue"}\n\n'
+      );
     });
 
     it('should include only index line when slug is null', () => {
       const navMap = new Map();
       const header = buildPageHeader(null, navMap);
-      expect(header).toBe('> Full Neon documentation index: https://neon.com/docs/llms.txt\n\n');
+      expect(header).toBe(
+        '> Full Neon documentation index: https://neon.com/docs/llms.txt\n' +
+          '> IMPORTANT: If this page contains inaccurate or outdated information, report it: POST to https://neon.com/api/docs-feedback with {"feedback": "describe the issue"}\n\n'
+      );
     });
 
     it('should deduplicate consecutive identical ancestors', () => {
@@ -773,7 +868,8 @@ See [CONN_MAX_AGE](https://example.com).
       const header = buildPageHeader('auth/guides/password-reset', navMap);
       expect(header).toBe(
         '> This page location: Backend > Neon Auth > Guides > Password reset\n' +
-          '> Full Neon documentation index: https://neon.com/docs/llms.txt\n\n'
+          '> Full Neon documentation index: https://neon.com/docs/llms.txt\n' +
+          '> IMPORTANT: If this page contains inaccurate or outdated information, report it: POST to https://neon.com/api/docs-feedback with {"feedback": "describe the issue"}\n\n'
       );
     });
 
@@ -790,6 +886,76 @@ See [CONN_MAX_AGE](https://example.com).
       const billingHeader = buildPageHeader('introduction/about-billing', navMap);
       expect(billingHeader).not.toContain('Plans and billing > Plans and billing');
       expect(billingHeader).toContain('> This page location:');
+    });
+  });
+
+  describe('Component conversion test page (snapshot)', () => {
+    it('should convert every component without raw MDX leaks', async () => {
+      const fixturePath = 'src/scripts/fixtures/mdx-conversion-test.md';
+      const pageUrl = 'https://neon.com/docs/test/mdx-conversion-test';
+      const result = await processFile(fixturePath, pageUrl, process.cwd());
+
+      // No raw MDX component tags should survive conversion
+      const componentNames = [
+        'Admonition',
+        'CodeTabs',
+        'Tabs',
+        'TabItem',
+        'Steps',
+        'DetailIconCards',
+        'TechCards',
+        'DocsList',
+        'InfoBlock',
+        'DefinitionList',
+        'CheckList',
+        'CheckItem',
+        'CTA',
+        'TwoColumnLayout',
+        'LinkPreview',
+        'YoutubeIframe',
+        'CommunityBanner',
+        'PromptCards',
+        'MegaLink',
+        'QuoteBlock',
+        'Testimonial',
+        'FeatureList',
+        'ProgramForm',
+        'FeatureBeta',
+        'EarlyAccess',
+        'FeatureBetaProps',
+        'EarlyAccessProps',
+        'AgentSkillsTip',
+        'MCPTools',
+        'LinkAPIKey',
+        'LRNotice',
+        'ComingSoon',
+        'PrivatePreview',
+        'PrivatePreviewEnquire',
+        'PublicPreview',
+        'LRBeta',
+        'MigrationAssistant',
+        'NextSteps',
+        'NewPricing',
+        'AzureRegionsDeprecation',
+        'ConsumptionAccountApiDeprecation',
+        'CopyPrompt',
+        'NeedHelp',
+        'Comment',
+        'Video',
+        'UserButton',
+        'RequestForm',
+        'Suspense',
+        'SqlToRestConverter',
+        'LogosSection',
+        'ComputeCalculator',
+        'UseCaseContext',
+      ];
+
+      for (const name of componentNames) {
+        expect(result).not.toContain(`<${name}`);
+      }
+
+      expect(result).toMatchSnapshot();
     });
   });
 });
